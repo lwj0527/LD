@@ -1,8 +1,11 @@
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const { getUserLanguages, headers, removeQuotes } = require('./helper.js');
 
+// 💡 [포함] 랜덤 딜레이를 위한 헬퍼 함수
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 const init = async () => {
-    const lessonsToComplete = Number(process.env.lessonsToComplete) || 5;
+    const lessonsToComplete = Number(process.env.lessonsToComplete) || 20;
     const token = removeQuotes(process.env.token);
     const userId = removeQuotes(process.env.userId);
 
@@ -14,36 +17,37 @@ const init = async () => {
         const userLanguages = await getUserLanguages();
         console.log('Fetched User Languages:', userLanguages);
 
+        // 💡 [안전 모드] 가장 안정적인 'GLOBAL_PRACTICE' 유형으로 고정
         const sessionBody = {
-            challengeTypes: ["listen"],
+            challengeTypes: [], 
             fromLanguage: userLanguages.fromLanguage,
-            isFinalLevel: false,
-            isV2: true,
-            juicy: true,
             learningLanguage: userLanguages.learningLanguage,
-            levelIndex: 1,
-            shakeToReportEnabled: true,
-            skillId: "20017c47905904a4bbdfa3ca1b4bd85e",
-            smartTipsVersion: 2,
-            type: "LEGENDARY_LEVEL",
+            type: "GLOBAL_PRACTICE", // 👈 가장 안정적인 세션 유형
+            //type: "TARGET_PRACTICE",
         };
 
         for (let i = 0; i < lessonsToComplete; i++) {
             const formattedFraction = `${i + 1}/${lessonsToComplete}`;
-            console.log(`Running: ${formattedFraction}`);
+            console.log(`\nRunning lesson: ${formattedFraction}`);
 
             try {
+                // 1. 세션 생성 (POST /sessions)
                 const createdSession = await fetch("https://www.duolingo.com/2017-06-30/sessions", {
                     headers,
                     method: 'POST',
                     body: JSON.stringify(sessionBody),
                 }).then(res => {
-                    if (!res.ok) throw new Error('Failed to create session. Check your credentials.');
+                    if (!res.ok) {
+                        return res.text().then(text => {
+                            throw new Error(`Failed to create session. Status: ${res.status}. Response: ${text}`);
+                        });
+                    }
                     return res.json();
                 });
 
                 console.log(`Created Fake Duolingo Practice Session: ${createdSession.id}`);
 
+                // 2. 세션 완료 데이터 전송 (PUT /sessions/{id})
                 const rewards = await fetch(`https://www.duolingo.com/2017-06-30/sessions/${createdSession.id}`, {
                     headers,
                     method: 'PUT',
@@ -63,25 +67,40 @@ const init = async () => {
                         sessionExperimentRecord: [],
                         sessionStartExperiments: [],
                         showBestTranslationInGradingRibbon: true,
-                        xpPromised: 201,
+                        
+                        // 💡 [최종 수정] 서버가 확실하게 승인하는 XP 값으로 설정
+                        xpPromised: 20, // 👈 10 XP 요청
+                        happyHourBonusXp: 10,
                     }),
                 }).then(res => {
                     if (!res.ok) {
                         return res.text().then(text => {
-                            console.error(`Error receiving rewards: ${text}`);
+                            console.error(`Error receiving rewards: Status: ${res.status}. Response: ${text}`);
+                            return null;
                         });
                     }
                     return res.json();
                 });
 
-                console.log(`Submitted Spoof Practice Session Data - Received`);
-                console.log(`💪🏆🎉 Earned ${rewards.xpGain} XP!`);
+                if (rewards) {
+                    console.log(`Submitted Spoof Practice Session Data - Received`);
+                    console.log(`💪🏆🎉 Earned ${rewards.xpGain} XP!`); 
+                }
+
             } catch (err) {
-                console.error(`Error in lesson ${formattedFraction}: ${err}`);
+                console.error(`Error in lesson ${formattedFraction}: ${err.message}`);
             }
+            
+            // 💡 [포함] 다음 반복 실행 전 1초 ~ 3초 사이의 랜덤 딜레이 적용
+            //const delayTime = 1000 + Math.floor(Math.random() * 2000); 
+            // 💡 [포함] 다음 반복 실행 전 70초 ~ 90초 사이의 랜덤 딜레이 적용
+            const delayTime = 70000 + Math.floor(Math.random() * 20000); 
+    
+            console.log(`Waiting for ${delayTime / 1000} seconds before next lesson...`);
+            await delay(delayTime);
         }
     } catch (err) {
-        console.error(`Initialization failed: ${err}`);
+        console.error(`Initialization failed: ${err.message}`);
     }
 };
 
