@@ -1,3 +1,4 @@
+
 name: 'Get XP'
 run-name: Your hack is running! Click me to see it's progress.
 
@@ -5,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       lessonsToComplete:
-        description: 'Amount of fake lessons to complete. (Each give 200 XP)'
+        description: 'Amount of fake lessons to complete. (Each give 20 XP)'
         required: true
-        default: 5
+        default: 20
 
 jobs:
   check-bats-version:
